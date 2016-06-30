@@ -1,16 +1,14 @@
 package org.hotswap.agent.plugin.spring;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.hotswap.agent.logging.AgentLogger;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.web.servlet.handler.AbstractHandlerMethodMapping;
 
 /**
  * Support for Spring MVC mapping caches.
@@ -42,43 +40,13 @@ public class ResetRequestMappingCaches {
 		}
 		try {
 			for (Entry<String, ?> e : mappings.entrySet()) {
-				Object am = e.getValue();
+				AbstractHandlerMethodMapping<Object> am = (AbstractHandlerMethodMapping<Object>) e.getValue();
 				LOGGER.info("Spring: clearing HandlerMapping for {}", am.getClass());
-				try {
-					Field f = c.getDeclaredField("handlerMethods");
-					f.setAccessible(true);
-					((Map<?,?>)f.get(am)).clear();
-					f = c.getDeclaredField("urlMap");
-					f.setAccessible(true);
-					((Map<?,?>)f.get(am)).clear();
-					try {
-						f = c.getDeclaredField("nameMap");
-						f.setAccessible(true);
-						((Map<?,?>)f.get(am)).clear();
-					} catch(NoSuchFieldException nsfe) {
-						LOGGER.trace("Probably using Spring 4.0 or below", nsfe);
-					}
-				} catch(NoSuchFieldException nsfe) {
-					LOGGER.trace("Probably using Spring 4.2+", nsfe);
-					Method m = c.getDeclaredMethod("getHandlerMethods", new Class[0]);
-					Class<?>[] parameterTypes = new Class[1];
-					parameterTypes[0] = Object.class;
-					Method u = c.getDeclaredMethod("unregisterMapping", parameterTypes);
-					Map<?,?> unmodifiableHandlerMethods = (Map<?,?>) m.invoke(am);
-					Iterator<?> it = unmodifiableHandlerMethods.entrySet().iterator();
-					Map cloneHandlerMethods = new HashMap();
-					while (it.hasNext()) {
-						Map.Entry<?,?> pair = (Map.Entry<?,?>) it.next();
-						LOGGER.trace("Handler method {}={}", pair.getKey(), pair.getValue());
-						cloneHandlerMethods.put(pair.getKey(), pair.getValue());
-					}
-					unmodifiableHandlerMethods = null;
-					it = cloneHandlerMethods.entrySet().iterator();
-					while (it.hasNext()) {
-						Map.Entry<?,?> pair = (Map.Entry<?,?>) it.next();
-						LOGGER.trace("Unregistering handler method {}", pair.getKey());
-						u.invoke(am, pair.getKey());
-					}
+				Map<Object,?> unmodifiableHandlerMethods = (Map<Object,?>) am.getHandlerMethods();
+				Set<Object> keys = unmodifiableHandlerMethods.keySet();
+				unmodifiableHandlerMethods = null;
+				for (Object key: keys) {
+					am.unregisterMapping(key);
 				}
 				if (am instanceof InitializingBean) {
 					((InitializingBean) am).afterPropertiesSet();
