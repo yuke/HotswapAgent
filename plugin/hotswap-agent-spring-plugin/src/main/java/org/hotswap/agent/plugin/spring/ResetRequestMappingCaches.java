@@ -43,9 +43,11 @@ public class ResetRequestMappingCaches {
 				AbstractHandlerMethodMapping<Object> am = (AbstractHandlerMethodMapping<Object>) e.getValue();
 				LOGGER.info("Spring: clearing HandlerMapping for {}", am.getClass());
 				Map<Object,?> unmodifiableHandlerMethods = (Map<Object,?>) am.getHandlerMethods();
-				Set<Object> keys = unmodifiableHandlerMethods.keySet();
+				Object[] keys = unmodifiableHandlerMethods.keySet().toArray();
+				LOGGER.trace("Number of handler methods: " + keys.length);
 				unmodifiableHandlerMethods = null;
 				for (Object key: keys) {
+					LOGGER.trace("Unregistering " + key);
 					am.unregisterMapping(key);
 				}
 				if (am instanceof InitializingBean) {
