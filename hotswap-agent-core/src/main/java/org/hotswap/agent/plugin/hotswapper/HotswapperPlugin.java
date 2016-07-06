@@ -19,8 +19,10 @@ import org.hotswap.agent.util.classloader.*;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Hotswap class changes directly via JPDA API.
@@ -48,6 +50,8 @@ public class HotswapperPlugin {
     // command to do actual hotswap. Single command to merge possible multiple reload actions.
     Command hotswapCommand;
 
+	private static final Map<String, Date> reloadLog = new HashMap<String, Date>();
+
     /**
      * For each changed class create a reload command.
      */
@@ -57,6 +61,28 @@ public class HotswapperPlugin {
             LOGGER.trace("Class {} not loaded yet, no need for autoHotswap, skipped URL {}", ctClass.getName(), url);
             return;
         }
+
+		if ("org.apache.jasper.servlet.JasperLoader".equals(appClassLoader.getClass().getName())) {
+			synchronized (reloadLog) {
+				String key = ctClass.getName() + url;
+				Date lastReload = reloadLog.get(key);
+				if (lastReload == null || (new Date().getTime() - lastReload.getTime()) > 100) {
+					reloadLog.put(key, new Date());
+				} else {
+					LOGGER.info("Reloaded Class {} from URL {} less than 100ms ago", ctClass.getName(), url);
+//					if (reloadLog.size() > 100) {	// Clean up
+//						Set<Map.Entry<String, Date>> logs = reloadLog.entrySet();
+//						long aWhileAgo = new Date().getTime() - 100;
+//						for (Map.Entry<String, Date> log : logs) {
+//							if (log.getValue().getTime() < aWhileAgo) {
+//								reloadLog.remove(log.getKey());
+//							}
+//						}
+//					}
+					return;
+				}
+			}
+		}
 
         LOGGER.debug("Class {} will be reloaded from URL {}", ctClass.getName(), url);
 
